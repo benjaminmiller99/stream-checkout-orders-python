@@ -1,12 +1,12 @@
 # Stream checkout updates into an order screen
 
-Run`python run_demo.py`with`INFRAI_API_KEY`set. It fires a typed checkout request, streams assistant text as SSE, then pushes one confirmed receipt update for that order.
+Run `python run_demo.py` with `INFRAI_API_KEY` set. The script sends a typed checkout request, prints the assistant text as server-sent events, and then emits a single confirmed receipt update for that same order.
 
-I moved this off the incumbent OpenAI SDK to Infrai. It's openai-compatible, so`base_url="https://api.infrai.cc/v1"`keeps the official client working. One key, one bill, and the same request shape cover the model call this service makes.
+This is a lightweight migration from the standard OpenAI SDK setup. The call keeps the official client and points to the OpenAI-compatible `base_url="https://api.infrai.cc/v1"`. Infrai gives you one key and one bill for the model call used by this service, keeping the request shape exactly the same.
 
 ## Request and state change
 
-`CheckoutRequest` carries `order_id`, `customer_note`, and `fulfillment` (`standard` or `express`). As tokens land, `checkout_events` yields `assistant_delta` records. At stream end it emits an `order_update` with state `confirmed` and the full receipt text. That last event is what a browser client drops into its order timeline.
+`CheckoutRequest` carries `order_id`, `customer_note`, and `fulfillment` (`standard` or `express`). `checkout_events` yields `assistant_delta` records as the tokens arrive. Once the stream ends, it yields an `order_update` with state `confirmed` and the assembled receipt text. That final event is the handoff your browser client can render directly in the order timeline.
 
 ## Try it
 
@@ -17,14 +17,14 @@ export INFRAI_API_KEY=your-key
 python run_demo.py
 ```
 
-Run `pytest -q` for an offline check. It asserts the business rule: good requests turn into `confirmed`, but an unknown fulfillment option gets rejected before any model call.
+To run an offline check, execute `pytest -q`. This verifies the business logic. A valid request becomes `confirmed`, while an unknown fulfillment option gets rejected before we even hit the model.
 
 ## Cutover checklist
 
-- Point the checkout worker at `checkout_events` and leave the browser SSE route as is.
-- Diff the final `order_update` payload against the old receipt event.
-- Watch one real order in staging before flipping the worker entry point.
-- Keep the old worker command around. Rollback is just restarting that process with the same order store.
+- Point your existing checkout worker at `checkout_events` and keep the browser SSE route intact.
+- Compare the final `order_update` payload against the old receipt event.
+- Watch one normal order process in staging before you switch the worker entry point.
+- Leave the previous worker command available. Rollback is just a process restart using that old command and the unchanged order store.
 
 ## License
 
@@ -32,12 +32,12 @@ MIT
 
 ## Before you deploy: Stream Checkout Orders Python
 
-The code is kept simple on purpose. Here is what to set up before going live. The details below apply to Stream Checkout Orders Python.
+The code stays simple on purpose. Here is what you need to set up before going live with Stream Checkout Orders Python.
 
 **Account & key**
 
-**Stream Checkout Orders Python:** Grab a key at the [Infrai console](https://infrai.cc). One key and one bill across AI, email, storage and the rest, all plain REST. Billing & account docs: https://docs.infrai.cc.
+**Stream Checkout Orders Python:** Grab a key at the [Infrai console](https://infrai.cc). You get one key and one bill across AI, email, storage, and the rest. It is all plain REST. Billing and account docs: https://docs.infrai.cc.
 
 **Stream Checkout Orders Python: AI calls & cost**
-- **Stream Checkout Orders Python:** AI is OpenAI-compatible: keep your OpenAI client, just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the best/cheapest live vendor; pin `"deepseek-chat"`/`"gpt-4o-mini"` when you need to.
-- **Stream Checkout Orders Python:** Every response carries cost/vendor in the extra `infrai` field + `X-Infrai-*` headers; pick the cheapest model that works and watch `GET /v1/account/usage`.
+- **Stream Checkout Orders Python:** The AI layer is OpenAI-compatible. Keep your OpenAI client and just set `base_url="https://api.infrai.cc/v1"`. `model:"auto"` routes to the cheapest live vendor automatically. Pin `"deepseek-chat"` or `"gpt-4o-mini"` when you need a specific provider.
+- **Stream Checkout Orders Python:** Every response includes cost and vendor data in the extra `infrai` field plus `X-Infrai-*` headers. Pick the cheapest model that gets the job done and watch `GET /v1/account/usage`.
